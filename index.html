@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>پشتیبانی آنلاین بیدارگر</title>
+<style>
+  body { font-family: Tahoma, sans-serif; background:#f4f5f7; margin:0; padding:0; direction: rtl; }
+  header { background:#2563eb; color:#fff; padding:16px; text-align:center; font-size:18px; }
+  #chat { max-width:600px; margin:0 auto; padding:12px; min-height:60vh; }
+  .msg { margin:10px 0; padding:10px 14px; border-radius:12px; max-width:80%; }
+  .msg.customer { background:#2563eb; color:#fff; margin-left:auto; }
+  .msg.expert { background:#fff; border:1px solid #ddd; margin-right:auto; }
+  .who { font-size:11px; opacity:0.7; margin-bottom:4px; }
+  #bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #ddd; padding:10px; max-width:600px; margin:0 auto; display:flex; gap:8px; flex-wrap:wrap; }
+  #text { flex:1; min-width:150px; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:15px; }
+  button { padding:10px 14px; border:none; border-radius:8px; background:#2563eb; color:#fff; font-size:14px; cursor:pointer; }
+  button.alt { background:#6b7280; }
+  button.rec { background:#dc2626; }
+  button.rec.recording { background:#7f1d1d; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%{opacity:1} 50%{opacity:0.5} 100%{opacity:1} }
+  #status { max-width:600px; margin:8px auto; text-align:center; color:#666; font-size:13px; }
+  #loading { text-align:center; color:#999; margin-top:40px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<script>window.onerror=function(msg,src,line,col,err){try{var d=document.createElement("div");d.style.cssText="position:fixed;bottom:0;left:0;right:0;background:#dc2626;color:#fff;padding:10px;font-size:12px;z-index:999999;direction:ltr;text-align:left;white-space:pre-wrap;";d.textContent="JS ERROR: "+msg+" (line "+line+":"+col+")";document.body.appendChild(d);}catch(e){}return false;};window.addEventListener("unhandledrejection",function(ev){try{var d=document.createElement("div");d.style.cssText="position:fixed;bottom:0;left:0;right:0;background:#b45309;color:#fff;padding:10px;font-size:12px;z-index:999999;direction:ltr;text-align:left;white-space:pre-wrap;";d.textContent="PROMISE ERROR: "+(ev.reason&&ev.reason.message?ev.reason.message:String(ev.reason));document.body.appendChild(d);}catch(e){}});</script>
+<header>پشتیبانی آنلاین بیدارگر</header>
+<div id="chat"><div id="loading">در حال بارگذاری...</div></div>
+<div id="status"></div>
+<div id="bar" class="hidden">
+  <input id="text" placeholder="پیام خود را بنویسید..." />
+  <button onclick="sendText()">ارسال</button>
+  <button class="alt" onclick="document.getElementById('fileInput').click()">📎 فایل/عکس</button>
+  <button class="alt" onclick="sendLocation()">📍 موقعیت</button>
+  <button class="rec" id="recBtn" onclick="toggleRecording()">🎤 پیام صوتی</button>
+  <input type="file" id="fileInput" style="display:none" onchange="sendFile(event)">
+</div>
+<script>
+const API_BASE = 'https://dvjkjwqbuoiefoxfclfg.supabase.co/functions/v1/support-link';
+const linkToken = new URLSearchParams(location.search).get('t');
+const statusEl = document.getElementById('status');
+function setStatus(t) { statusEl.textContent = t; setTimeout(()=>{ if(statusEl.textContent===t) statusEl.textContent=''; }, 4000); }
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderMessages(history) {
+  const chat = document.getElementById('chat');
+  if (!history || !history.length) {
+    chat.innerHTML = '<div id="loading">پیامی وجود ندارد. اولین پیام خود را بفرستید.</div>';
+    return;
+  }
+  chat.innerHTML = history.map(m => {
+    const who = m.sender === 'customer' ? 'شما' : 'پشتیبانی';
+    let body = '';
+    if (m.msg_type === 'text') body = escapeHtml(m.content || '');
+    else if (m.msg_type === 'location') body = '📍 موقعیت مکانی: <a href="https://maps.google.com/?q='+m.lat+','+m.lng+'" target="_blank">نمایش روی نقشه</a>';
+    else if (m.msg_type === 'image') body = '🖼️ <a href="'+m.github_asset_url+'" target="_blank">'+escapeHtml(m.file_name||'تصویر')+'</a><br><img src="'+m.github_asset_url+'" style="max-width:100%;border-radius:8px;margin-top:6px;">';
+    else if (m.msg_type === 'voice') body = '🎤 پیام صوتی<br><audio controls src="'+m.github_asset_url+'" style="max-width:100%;margin-top:6px;"></audio>';
+    else body = '📎 <a href="'+m.github_asset_url+'" target="_blank">'+escapeHtml(m.file_name||'فایل')+'</a>';
+    return '<div class="msg '+m.sender+'"><div class="who">'+who+'</div><div class="body">'+body+'</div></div>';
+  }).join('');
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function loadChat() {
+  if (!linkToken) { document.getElementById('chat').innerHTML = '<h2 style="text-align:center;margin-top:50px">لینک نامعتبر است</h2>'; return; }
+  try {
+    const res = await fetch(API_BASE + '?t=' + encodeURIComponent(linkToken) + '&api=1', { cache: 'no-store' });
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('chat').innerHTML = '<h2 style="text-align:center;margin-top:50px">' + escapeHtml(data.error || 'این لینک نامعتبر یا غیرفعال است') + '</h2>';
+      return;
+    }
+    renderMessages(data.history);
+    document.getElementById('bar').classList.remove('hidden');
+  } catch (e) {
+    document.getElementById('chat').innerHTML = '<h2 style="text-align:center;margin-top:50px">خطا در بارگذاری گفتگو</h2>';
+  }
+}
+
+async function post(payload) {
+  const res = await fetch(API_BASE + '?t=' + encodeURIComponent(linkToken), {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'خطا');
+  return data;
+}
+
+async function sendText() {
+  const el = document.getElementById('text');
+  const val = el.value.trim();
+  if (!val) return;
+  el.value = '';
+  try { await post({ type: 'text', content: val }); await loadChat(); }
+  catch (e) { setStatus(e.message); }
+}
+
+function sendLocation() {
+  if (!navigator.geolocation) { setStatus('مرورگر شما موقعیت مکانی را پشتیبانی نمی‌کند'); return; }
+  setStatus('در حال دریافت موقعیت...');
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    try {
+      await post({ type: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude });
+      await loadChat();
+    } catch (e) { setStatus(e.message); }
+  }, () => setStatus('دسترسی به موقعیت مکانی رد شد'));
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function sendFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  if (file.size > 20 * 1024 * 1024) { setStatus('حجم فایل نباید بیشتر از ۲۰ مگابایت باشد'); return; }
+  setStatus('در حال ارسال فایل...');
+  try {
+    const b64 = await fileToBase64(file);
+    const isImage = file.type.startsWith('image/');
+    await post({ type: isImage ? 'image' : 'file', fileBase64: b64, fileName: file.name, mimeType: file.type });
+    await loadChat();
+  } catch (e) { setStatus(e.message || 'ارسال فایل ناموفق بود'); }
+}
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+
+async function toggleRecording() {
+  const btn = document.getElementById('recBtn');
+  if (!isRecording) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setStatus('مرورگر شما ضبط صدا را پشتیبانی نمی‌کند'); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        if (blob.size < 500) { setStatus('ضبط بسیار کوتاه بود'); return; }
+        setStatus('در حال ارسال پیام صوتی...');
+        try {
+          const b64 = await fileToBase64(blob);
+          const ext = (mediaRecorder.mimeType || 'audio/webm').includes('mp4') ? 'm4a' : 'webm';
+          await post({ type: 'voice', fileBase64: b64, fileName: 'voice-' + Date.now() + '.' + ext, mimeType: mediaRecorder.mimeType || 'audio/webm' });
+          await loadChat();
+        } catch (e) { setStatus(e.message || 'ارسال پیام صوتی ناموفق بود'); }
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      btn.classList.add('recording');
+      btn.textContent = '⏹️ توقف و ارسال';
+      setStatus('در حال ضبط...');
+    } catch (e) { setStatus('دسترسی به میکروفون رد شد'); }
+  } else {
+    isRecording = false;
+    btn.classList.remove('recording');
+    btn.textContent = '🎤 پیام صوتی';
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }
+}
+
+document.getElementById('text') && document.getElementById('text').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendText(); });
+
+loadChat();
+</script>
+</body>
+</html>
