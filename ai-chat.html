@@ -49,7 +49,7 @@ let mobile = '';
 let history = [];
 const statusEl = document.getElementById('status');
 function setStatus(t) { statusEl.textContent = t; }
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function(c){ var map={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}; return map[c]; }); }
 
 function startChat() {
   mobile = document.getElementById('mobileInput').value.trim();
@@ -66,7 +66,9 @@ function addMsg(role, content) {
   row.className = 'msg-row ' + role;
   const el = document.createElement('div');
   el.className = 'msg ' + role;
-  el.innerHTML = escapeHtml(content).replace(/(https?://[^s]+)/g, '<a href="$1" target="_blank">$1</a>');
+  var bs = String.fromCharCode(92);
+  var urlRegex = new RegExp('https?://[^' + bs + 's]+', 'g');
+  el.innerHTML = escapeHtml(content).replace(urlRegex, function(m){ return '<a href="' + m + '" target="_blank">' + m + '</a>'; });
   row.appendChild(el);
   box.appendChild(row);
   window.scrollTo(0, document.body.scrollHeight);
@@ -92,8 +94,8 @@ async function sendMsg() {
     setStatus(data.handoff ? '🔵 این گفتگو به کارشناس انسانی ارجاع شد' : '');
   } catch (e) { setStatus(e.message); }
 }
-document.getElementById('text') && document.getElementById('text').addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
-document.getElementById('mobileInput').addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
+document.getElementById('text') && document.getElementById('text').addEventListener('keydown', function(e){ if (e.key === 'Enter') sendMsg(); });
+document.getElementById('mobileInput').addEventListener('keydown', function(e){ if (e.key === 'Enter') startChat(); });
 </script>
 </body>
 </html>
