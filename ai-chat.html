@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>پشتیبان هوش مصنوعی بیدارگر</title>
+<style>
+  * { box-sizing: border-box; }
+  :root { --blue:#2563eb; --blue-dark:#1e40af; --bg:#eef1f6; --border:#e5e7eb; }
+  body { font-family: Tahoma, sans-serif; background:var(--bg); margin:0; padding:0; direction: rtl; color:#1f2937; }
+  header { background:linear-gradient(135deg,var(--blue),var(--blue-dark)); color:#fff; padding:16px; text-align:center; font-size:16.5px; font-weight:bold; position:sticky; top:0; z-index:5; }
+  #setup { max-width:420px; margin:60px auto; background:#fff; padding:22px; border-radius:14px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  #setup p { font-size:13.5px; color:#666; margin-top:0; }
+  #setup input { width:100%; padding:11px; border-radius:22px; border:1px solid #d1d5db; margin-bottom:12px; font-size:14.5px; box-sizing:border-box; text-align:center; }
+  #setup button { width:100%; padding:11px; border:none; border-radius:22px; background:var(--blue); color:#fff; font-size:14.5px; cursor:pointer; }
+  #chat { max-width:600px; margin:0 auto; padding:14px 12px 90px; min-height:60vh; display:none; }
+  .msg-row { display:flex; margin:10px 0; }
+  .msg-row.user { justify-content:flex-end; }
+  .msg-row.assistant { justify-content:flex-start; }
+  .msg { padding:10px 14px; border-radius:16px; max-width:80%; font-size:14.5px; line-height:1.6; box-shadow:0 1px 2px rgba(0,0,0,0.05); white-space:pre-wrap; }
+  .msg.user { background:var(--blue); color:#fff; border-bottom-left-radius:5px; }
+  .msg.assistant { background:#fff; border:1px solid var(--border); border-bottom-right-radius:5px; }
+  .msg a { color: inherit; }
+  #bar { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--border); padding:10px; display:none; gap:8px; justify-content:center; }
+  #bar > * { max-width:600px; }
+  #text { flex:1; min-width:150px; padding:11px 14px; border-radius:22px; border:1px solid #d1d5db; font-size:14.5px; font-family:inherit; }
+  #text:focus { outline:none; border-color:var(--blue); }
+  button.send { padding:10px 18px; border:none; border-radius:22px; background:var(--blue); color:#fff; font-size:14px; cursor:pointer; font-family:inherit; }
+  #status { max-width:600px; margin:6px auto 0; text-align:center; color:#6b7280; font-size:12.5px; min-height:16px; }
+</style>
+</head>
+<body>
+<script>window.onerror=function(msg,src,line,col,err){try{var d=document.createElement("div");d.style.cssText="position:fixed;bottom:0;left:0;right:0;background:#dc2626;color:#fff;padding:10px;font-size:12px;z-index:999999;direction:ltr;text-align:left;white-space:pre-wrap;";d.textContent="JS ERROR: "+msg+" (line "+line+":"+col+")";document.body.appendChild(d);}catch(e){}return false;};</script>
+<header>پشتیبان هوش مصنوعی بیدارگر</header>
+<div id="setup">
+  <p>برای شروع، شماره موبایل خودت رو وارد کن:</p>
+  <input id="mobileInput" inputmode="numeric" placeholder="09xxxxxxxxx" />
+  <button onclick="startChat()">شروع گفتگو</button>
+</div>
+<div id="chat"></div>
+<div id="status"></div>
+<div id="bar">
+  <input id="text" placeholder="پیام خود را بنویس..." />
+  <button class="send" onclick="sendMsg()">ارسال</button>
+</div>
+<script>
+const API = 'https://dvjkjwqbuoiefoxfclfg.supabase.co/functions/v1/ai-support';
+let mobile = '';
+let history = [];
+const statusEl = document.getElementById('status');
+function setStatus(t) { statusEl.textContent = t; }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function startChat() {
+  mobile = document.getElementById('mobileInput').value.trim();
+  if (!mobile || mobile.length < 8) { setStatus('شماره موبایل معتبر وارد کن'); return; }
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('chat').style.display = 'block';
+  document.getElementById('bar').style.display = 'flex';
+  addMsg('assistant', 'سلام! من دستیار پشتیبانی بیدارگر هستم. چطور می‌تونم کمکت کنم؟');
+}
+
+function addMsg(role, content) {
+  const box = document.getElementById('chat');
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + role;
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  el.innerHTML = escapeHtml(content).replace(/(https?://[^s]+)/g, '<a href="$1" target="_blank">$1</a>');
+  row.appendChild(el);
+  box.appendChild(row);
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+async function sendMsg() {
+  const el = document.getElementById('text');
+  const val = el.value.trim();
+  if (!val) return;
+  el.value = '';
+  addMsg('user', val);
+  history.push({ role: 'user', content: val });
+  setStatus('در حال پاسخ‌گویی...');
+  try {
+    const res = await fetch(API, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mobile, messages: history })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'خطا');
+    addMsg('assistant', data.reply);
+    history.push({ role: 'assistant', content: data.reply });
+    setStatus(data.handoff ? '🔵 این گفتگو به کارشناس انسانی ارجاع شد' : '');
+  } catch (e) { setStatus(e.message); }
+}
+document.getElementById('text') && document.getElementById('text').addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
+document.getElementById('mobileInput').addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
+</script>
+</body>
+</html>
