@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ویرایش سیستم‌پرامپت پشتیبانی — کاربر مسدود</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Tahoma, "Vazirmatn", sans-serif;
+    background: #0f172a; color: #f8fafc;
+    margin: 0; padding: 24px; direction: rtl;
+    display: flex; justify-content: center;
+  }
+  .wrap { max-width: 640px; width: 100%; }
+  h1 { font-size: 1.15rem; margin-bottom: 4px; }
+  .sub { color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.8; }
+  .warn {
+    background: #1e293b; border: 1px solid #334155; color: #cbd5e1;
+    border-radius: 10px; padding: 10px 14px; font-size: 0.8rem; margin-bottom: 20px; line-height: 1.8;
+  }
+  label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: #cbd5e1; }
+  input[type=password], textarea {
+    width: 100%; background: #1e293b; border: 1px solid #334155; color: #f8fafc;
+    border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; font-family: inherit;
+    margin-bottom: 16px;
+  }
+  textarea { min-height: 320px; line-height: 1.8; resize: vertical; }
+  .row { display: flex; gap: 10px; margin-bottom: 16px; }
+  button {
+    flex: 1; border: none; border-radius: 10px; padding: 12px; font-size: 0.9rem;
+    font-weight: bold; cursor: pointer;
+  }
+  #btnLoad { background: #334155; color: #fff; }
+  #btnSave { background: #8b5cf6; color: #fff; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status { font-size: 0.85rem; text-align: center; min-height: 20px; margin-top: 4px; }
+  .ok { color: #34d399; }
+  .err { color: #f87171; }
+  .charcount { text-align: left; font-size: 0.72rem; color: #64748b; margin-top: -12px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ویرایش سیستم‌پرامپت پشتیبانی هوش مصنوعی — کاربر مسدود</h1>
+  <div class="sub">
+    این صفحه فقط متنِ پرامپتِ پشتیبانِ کاربرانِ مسدود رو می‌خونه و می‌نویسه — به هیچ بخشِ دیگه‌ای از دیتابیس دسترسی نداره.
+  </div>
+  <div class="warn">
+    🔒 اینجا دیگه کلید مدیریتی دیتابیس لازم نیست؛ فقط توکنِ اختصاصیِ همین صفحه رو وارد کن. این توکن فقط اجازه‌ی ویرایشِ همین یک پرامپت رو می‌ده، حتی اگه لو بره به جای دیگه‌ای از دیتابیس دسترسی نداره. توکن جایی ذخیره نمی‌شه — فقط توی حافظه‌ی همین تب، تا وقتی صفحه بازه.
+  </div>
+
+  <label for="token">توکن ویرایش پرامپت</label>
+  <input type="password" id="token" placeholder="توکن را وارد کن" autocomplete="off">
+
+  <label for="prompt">متن سیستم‌پرامپت (فقط برای کاربر مسدود)</label>
+  <textarea id="prompt" placeholder="روی «بارگذاری وضعیت فعلی» بزن تا متن فعلی اینجا لود بشه، بعد ویرایشش کن."></textarea>
+  <div class="charcount" id="charcount">۰ کاراکتر</div>
+
+  <div class="row">
+    <button id="btnLoad">📥 بارگذاری وضعیت فعلی</button>
+    <button id="btnSave">💾 ذخیره</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+const API_BASE = "https://dvjkjwqbuoiefoxfclfg.supabase.co/functions/v1/admin-prompt-editor";
+
+const tokenEl = document.getElementById('token');
+const promptEl = document.getElementById('prompt');
+const statusEl = document.getElementById('status');
+const charcountEl = document.getElementById('charcount');
+const btnLoad = document.getElementById('btnLoad');
+const btnSave = document.getElementById('btnSave');
+
+function setStatus(msg, cls) {
+  statusEl.textContent = msg;
+  statusEl.className = cls || '';
+}
+
+promptEl.addEventListener('input', () => {
+  charcountEl.textContent = promptEl.value.length.toLocaleString('fa-IR') + ' کاراکتر';
+});
+
+function getToken() {
+  const t = tokenEl.value.trim();
+  if (!t) { setStatus('اول توکن رو وارد کن.', 'err'); return null; }
+  return t;
+}
+
+btnLoad.addEventListener('click', async () => {
+  const token = getToken();
+  if (!token) return;
+  btnLoad.disabled = true;
+  setStatus('در حال بارگذاری...', '');
+  try {
+    const res = await fetch(API_BASE + '?token=' + encodeURIComponent(token));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    promptEl.value = data.value || '';
+    charcountEl.textContent = promptEl.value.length.toLocaleString('fa-IR') + ' کاراکتر';
+    setStatus('✅ متن فعلی بارگذاری شد.', 'ok');
+  } catch (e) {
+    setStatus('❌ خطا: ' + e.message, 'err');
+  } finally {
+    btnLoad.disabled = false;
+  }
+});
+
+btnSave.addEventListener('click', async () => {
+  const token = getToken();
+  if (!token) return;
+  const value = promptEl.value;
+  if (!value.trim()) {
+    setStatus('متن خالیه — چیزی بنویس تا ذخیره بشه.', 'err');
+    return;
+  }
+  btnSave.disabled = true;
+  setStatus('در حال ذخیره...', '');
+  try {
+    const res = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    setStatus('✅ ذخیره شد.', 'ok');
+  } catch (e) {
+    setStatus('❌ خطا: ' + e.message, 'err');
+  } finally {
+    btnSave.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
