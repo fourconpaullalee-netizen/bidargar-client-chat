@@ -17,10 +17,6 @@
   .sub { color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.8; }
   .scope {
     background: #1e2a3f; border: 1px solid #334155; color: #cbd5e1;
-    border-radius: 10px; padding: 10px 14px; font-size: 0.8rem; margin-bottom: 14px; line-height: 1.8;
-  }
-  .warn {
-    background: #3f1d1d; border: 1px solid #7f1d1d; color: #fecaca;
     border-radius: 10px; padding: 10px 14px; font-size: 0.8rem; margin-bottom: 20px; line-height: 1.8;
   }
   label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: #cbd5e1; }
@@ -49,17 +45,14 @@
 <div class="wrap">
   <h1>ویرایش سیستم‌پرامپت پشتیبانی هوش مصنوعی — کاربر مسدود</h1>
   <div class="sub">
-    این صفحه فقط کلید <code>ai_support_prompt_restricted</code> توی جدول <code>bidargar_config</code> پروژه‌ی bidargar رو می‌خونه و می‌نویسه.
+    این صفحه فقط کلید <code>ai_support_prompt_restricted</code> توی جدول <code>bidargar_config</code> پروژه‌ی بیدارگر رو می‌خونه و می‌نویسه؛ از طریق یک توکن اختصاصی (نه کلید کامل سرور).
   </div>
   <div class="scope">
-    🎯 <b>محدوده‌ی این ابزار:</b> این صفحه فقط و فقط سیستم‌پرامپت «پشتیبانی هوش مصنوعی برای کاربر مسدود» رو تغییر می‌ده — همون متنی که برای همه‌ی کاربرهای مسدود (از جمله کاربر ایرانی) یکسان اعمال می‌شه. هیچ چیز دیگه‌ای (پرامپت کاربر غیرمسدود، تنظیمات ارجاع به انسان، هیچ جدول یا تابع دیگری) رو دست نمی‌زنه، و هیچ تفکیک جداگانه‌ای بر اساس کشور خاص (مثلاً فقط ایران) هم انجام نمی‌ده.
-  </div>
-  <div class="warn">
-    ⚠️ توکنی که وارد می‌کنی <b>service_role key</b> پروژه‌ته — یک کلید مدیریتی کامل که به کل دیتابیس دسترسی داره. این صفحه رو فقط خودت باز کن، لینکش رو جایی آپلود/ارسال نکن، و بعد از استفاده تب رو ببند. توکن هیچ‌جا ذخیره نمی‌شه — فقط توی حافظه‌ی همین تب، تا وقتی صفحه بازه.
+    🎯 <b>محدوده‌ی این ابزار:</b> این صفحه فقط سیستم‌پرامپت «پشتیبانی هوش مصنوعی برای کاربر مسدود» رو تغییر می‌ده. حتی اگر توکن این صفحه لو بره، فقط همین یک متن قابل تغییره — نه چیز دیگه‌ای در دیتابیس.
   </div>
 
-  <label for="token">Supabase Service Role Key</label>
-  <input type="password" id="token" placeholder="eyJhbGciOi..." autocomplete="off">
+  <label for="token">توکن مدیریت این ابزار</label>
+  <input type="password" id="token" placeholder="توکن اختصاصی (نه کلید سرور)" autocomplete="off">
 
   <label for="prompt">متن سیستم‌پرامپت (فقط برای کاربر مسدود)</label>
   <textarea id="prompt" placeholder="روی «بارگذاری وضعیت فعلی» بزن تا متن فعلی اینجا لود بشه، بعد ویرایشش کن."></textarea>
@@ -74,46 +67,9 @@
 </div>
 
 <script>
-const PROJECT_URL = "https://dvjkjwqbuoiefoxfclfg.supabase.co";
-const KEY = "ai_support_prompt_restricted";
+const API = "https://dvjkjwqbuoiefoxfclfg.supabase.co/functions/v1/admin-prompt-editor";
 
-// همون متن پیش‌فرضِ خنثی و امنی که توی سرور هم به‌عنوان fallback استفاده می‌شه —
-// این دکمه چیزی رو خودش ذخیره نمی‌کنه، فقط متن رو توی جعبه‌ی ویرایش می‌ذاره تا
-// خودت مرور کنی و اگه خواستی با دکمه‌ی «ذخیره» تأییدش کنی.
-const DEFAULT_PROMPT = `تو دستیار پشتیبانیِ آنلاینِ «بیدارگر» هستی — یک پلتفرم دستیار هوش مصنوعیِ همه‌کاره برای موبایل و وب. این‌ها امکانات واقعی پلتفرم هستن؛ فقط درباره‌ی همین‌ها با اطمینان صحبت کن:
-
-💬 چت هوشمند و شخصیت‌ها
-- گفتگو با چند مدل زبانی مختلف (رایگان و پولی)؛ کاربر خودش مدل رو انتخاب می‌کنه یا «حالت هوشمند» رو روشن می‌کنه تا مسیریاب خودکار بهترین مدل رو برای هر سوال (کدنویسی/تحلیل/عمومی) انتخاب کنه و قبل از ارسال تاییدِ هزینه بگیره.
-- شخصیت‌های آماده: بدون شخصیت (آزاد و دقیق)، شیطانی (رمان تخیلی)، شوخ‌طبع، مهربان، رسمی، و شخصیت اختصاصیِ «بیدارگر»؛ کاربر می‌تونه شخصیت اختصاصی خودش رو هم بسازه.
-- پاسخ جریانی لحظه‌به‌لحظه، و «تفکر عمیق» که مراحل واقعی پردازش مدل رو نشون می‌ده.
-- حافظه‌ی میان‌گفتگویی (قابل روشن/خاموش‌کردن) که کاربر رو در گفتگوهای مختلف به‌یاد می‌مونه.
-
-📁 فایل و رسانه
-- ارسال و تحلیل عکس، ویدیو، صوت، PDF و هر فایل متنی/کد؛ تولید تصویر و ویدیو با هوش مصنوعی.
-
-🧑‍💻 حالت کدنویسی (ماشین مجازی)
-- هوش مصنوعی خودش کد رو در یک ماشین مجازی امن و اختصاصی می‌نویسه، اجرا می‌کنه، نتیجه رو می‌بینه و اصلاح می‌کنه — کاملاً خودکار. کاربر هروقت خواست ماشین مجازیش رو نابود می‌کنه.
-- ساخت اپلیکیشن اندروید (APK) از همین ابزار.
-
-🌐 دستیار مرورگر و دسکتاپ
-- کنترل یک مرورگر واقعی (باز کردن صفحه، پرکردن فرم، کلیک، خواندن متن/رونوشت) و یک دسکتاپ لینوکسی واقعی؛ در فرم‌های لاگین/ثبت‌نام کنترل کامل همیشه دست خود کاربر می‌مونه.
-
-📞 تماس زنده‌ی صوتی و تصویری
-- تماس صوتی/تصویری زنده با هوش مصنوعی، اشتراک تصویر دوربین یا صفحه، و ارسال فایل حین تماس.
-
-☁️ ذخیره‌سازی و بک‌آپ
-- ذخیره‌ی چت‌ها/شخصیت‌ها: هم ابری هم گوشی، فقط ابری، یا فقط روی گوشی (بدون ارسال به سرور).
-- بک‌آپ یکپارچه با لینک، بازیابی از لینک، و پیوندهای عمومی برای اشتراک‌گذاری گفتگو.
-
-💳 کیف‌پول و اشتراک
-- کیف‌پول تومانی با شارژ کارت‌به‌کارت؛ هر فراخوانی مدل دقیقاً به قیمت تمام‌شده (بدون سود اضافه) کسر می‌شه. پلن‌های اشتراک با وضعیت و تاریخ انقضا.
-
-🧑‍💻 پلتفرم توسعه‌دهندگان
-- کاربران می‌تونن کلید API اختصاصی بگیرن و از سایت/برنامه‌ی خودشون به تمام ابزارهای بیدارگر (چت، ماشین مجازی، جستجوی گوگل، تحلیل یوتیوب، تحقیق عمیق و ...) وصل بشن؛ هزینه از کیف‌پول همون کلید کسر می‌شه.
-
-وظیفه‌ی تو:
-۱. مؤدب، صمیمی و مختصر باش؛ همیشه فارسی روان جواب بده.
-۲. تمام تلاشت رو بکن که خودت مستقیم و دقیق به سؤال کاربر جواب بدی، بدون حدس‌زدن چیزی که نمی‌دونی.`;
+const DEFAULT_PROMPT = "تو دستیار پشتیبانیِ آنلاینِ «بیدارگر» هستی، مخصوص کاربرانی که سرویس در منطقه‌ی جغرافیایی‌شان در دسترس نیست.\n\nوظیفه‌ی تو:\n۱. همیشه مؤدب، محترمانه و کوتاه پاسخ بده؛ به فارسی روان صحبت کن.\n۲. به‌طور شفاف و بدون توهین توضیح بده که به دلیل محدودیت‌های جغرافیایی/قانونی، سرویس در حال حاضر برای کاربران این منطقه در دسترس نیست.\n۳. هرگز به کاربر توهین نکن، تحقیرش نکن و رفتار خصمانه نداشته باش — صرف‌نظر از ملیت، کشور یا نحوه‌ی صحبتش.\n۴. هیچ ادعای دروغینی درباره‌ی ردیابی، شناسایی IMEI، تحلیل VoIP یا مسدودسازی دائمی مطرح نکن؛ این قابلیت‌ها وجود ندارند.\n۵. اگر کاربر عصبانی یا ناامید بود، با آرامش و همدلی پاسخ بده، ولی نمی‌توانی دسترسی به سرویس را برایش باز کنی.\n۶. اگر سؤالی عمومی (نه مرتبط به دسترسی) پرسید که پاسخش را می‌دانی، می‌توانی به‌طور خلاصه کمک کنی؛ در غیر این صورت فقط توضیح بده که برای این مورد نمی‌توانی کمک کنی.\n۷. هرگز راهنمایی برای دور زدن محدودیت (VPN، شماره مجازی و غیره) ارائه نده و به این‌گونه درخواست‌ها فقط بگو که نمی‌توانی در این باره کمک کنی — بدون تمسخر یا تهدید.\n۸. درخواست پشتیبانی انسانی را رد نکن؛ اگر کاربر اصرار داشت، مؤدبانه بگو که در حال حاضر پشتیبانی انسانی برای این منطقه فعال نیست و پیشنهاد بده بعداً دوباره تلاش کند.";
 
 const tokenEl = document.getElementById('token');
 const promptEl = document.getElementById('prompt');
@@ -134,45 +90,22 @@ promptEl.addEventListener('input', updateCharCount);
 
 function getToken() {
   const t = tokenEl.value.trim();
-  if (!t) { setStatus('اول توکن service_role رو وارد کن.', 'err'); return null; }
+  if (!t) { setStatus('اول توکن این ابزار رو وارد کن.', 'err'); return null; }
   return t;
 }
 
-async function apiRequest(method, body) {
-  const token = getToken();
-  if (!token) return null;
-  const url = `${PROJECT_URL}/rest/v1/bidargar_config?key=eq.${encodeURIComponent(KEY)}`;
-  const res = await fetch(url, {
-    method,
-    headers: {
-      'apikey': token,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = text; }
-  if (!res.ok) {
-    throw new Error((data && data.message) ? data.message : `HTTP ${res.status}: ${text.slice(0,200)}`);
-  }
-  return data;
-}
-
 btnLoad.addEventListener('click', async () => {
+  const token = getToken();
+  if (!token) return;
   btnLoad.disabled = true;
   setStatus('در حال بارگذاری...', '');
   try {
-    const data = await apiRequest('GET');
-    if (!data || !data.length) {
-      setStatus('ردیفی با این کلید پیدا نشد.', 'err');
-    } else {
-      promptEl.value = data[0].value || '';
-      updateCharCount();
-      setStatus('✅ متن فعلی بارگذاری شد.', 'ok');
-    }
+    const res = await fetch(API + '?token=' + encodeURIComponent(token));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    promptEl.value = data.value || '';
+    updateCharCount();
+    setStatus('✅ متن فعلی بارگذاری شد.', 'ok');
   } catch (e) {
     setStatus('❌ خطا: ' + e.message, 'err');
   } finally {
@@ -187,6 +120,8 @@ btnDefault.addEventListener('click', () => {
 });
 
 btnSave.addEventListener('click', async () => {
+  const token = getToken();
+  if (!token) return;
   const value = promptEl.value;
   if (!value.trim()) {
     setStatus('متن خالیه — چیزی بنویس تا ذخیره بشه.', 'err');
@@ -195,7 +130,13 @@ btnSave.addEventListener('click', async () => {
   btnSave.disabled = true;
   setStatus('در حال ذخیره...', '');
   try {
-    await apiRequest('PATCH', { value, updated_at: new Date().toISOString() });
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
     setStatus('✅ ذخیره شد.', 'ok');
   } catch (e) {
     setStatus('❌ خطا: ' + e.message, 'err');
