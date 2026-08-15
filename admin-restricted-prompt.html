@@ -15,8 +15,12 @@
   .wrap { max-width: 640px; width: 100%; }
   h1 { font-size: 1.15rem; margin-bottom: 4px; }
   .sub { color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.8; }
+  .scope {
+    background: #1e2a3f; border: 1px solid #334155; color: #cbd5e1;
+    border-radius: 10px; padding: 10px 14px; font-size: 0.8rem; margin-bottom: 14px; line-height: 1.8;
+  }
   .warn {
-    background: #1e293b; border: 1px solid #334155; color: #cbd5e1;
+    background: #3f1d1d; border: 1px solid #7f1d1d; color: #fecaca;
     border-radius: 10px; padding: 10px 14px; font-size: 0.8rem; margin-bottom: 20px; line-height: 1.8;
   }
   label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: #cbd5e1; }
@@ -26,13 +30,14 @@
     margin-bottom: 16px;
   }
   textarea { min-height: 320px; line-height: 1.8; resize: vertical; }
-  .row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .row { display: flex; gap: 10px; margin-bottom: 10px; }
   button {
     flex: 1; border: none; border-radius: 10px; padding: 12px; font-size: 0.9rem;
     font-weight: bold; cursor: pointer;
   }
   #btnLoad { background: #334155; color: #fff; }
   #btnSave { background: #8b5cf6; color: #fff; }
+  #btnDefault { width: 100%; background: transparent; color: #cbd5e1; border: 1px solid #475569; margin-bottom: 16px; }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   #status { font-size: 0.85rem; text-align: center; min-height: 20px; margin-top: 4px; }
   .ok { color: #34d399; }
@@ -44,14 +49,17 @@
 <div class="wrap">
   <h1>ویرایش سیستم‌پرامپت پشتیبانی هوش مصنوعی — کاربر مسدود</h1>
   <div class="sub">
-    این صفحه فقط متنِ پرامپتِ پشتیبانِ کاربرانِ مسدود رو می‌خونه و می‌نویسه — به هیچ بخشِ دیگه‌ای از دیتابیس دسترسی نداره.
+    این صفحه فقط کلید <code>ai_support_prompt_restricted</code> توی جدول <code>bidargar_config</code> پروژه‌ی bidargar رو می‌خونه و می‌نویسه.
+  </div>
+  <div class="scope">
+    🎯 <b>محدوده‌ی این ابزار:</b> این صفحه فقط و فقط سیستم‌پرامپت «پشتیبانی هوش مصنوعی برای کاربر مسدود» رو تغییر می‌ده — همون متنی که برای همه‌ی کاربرهای مسدود (از جمله کاربر ایرانی) یکسان اعمال می‌شه. هیچ چیز دیگه‌ای (پرامپت کاربر غیرمسدود، تنظیمات ارجاع به انسان، هیچ جدول یا تابع دیگری) رو دست نمی‌زنه، و هیچ تفکیک جداگانه‌ای بر اساس کشور خاص (مثلاً فقط ایران) هم انجام نمی‌ده.
   </div>
   <div class="warn">
-    🔒 اینجا دیگه کلید مدیریتی دیتابیس لازم نیست؛ فقط توکنِ اختصاصیِ همین صفحه رو وارد کن. این توکن فقط اجازه‌ی ویرایشِ همین یک پرامپت رو می‌ده، حتی اگه لو بره به جای دیگه‌ای از دیتابیس دسترسی نداره. توکن جایی ذخیره نمی‌شه — فقط توی حافظه‌ی همین تب، تا وقتی صفحه بازه.
+    ⚠️ توکنی که وارد می‌کنی <b>service_role key</b> پروژه‌ته — یک کلید مدیریتی کامل که به کل دیتابیس دسترسی داره. این صفحه رو فقط خودت باز کن، لینکش رو جایی آپلود/ارسال نکن، و بعد از استفاده تب رو ببند. توکن هیچ‌جا ذخیره نمی‌شه — فقط توی حافظه‌ی همین تب، تا وقتی صفحه بازه.
   </div>
 
-  <label for="token">توکن ویرایش پرامپت</label>
-  <input type="password" id="token" placeholder="توکن را وارد کن" autocomplete="off">
+  <label for="token">Supabase Service Role Key</label>
+  <input type="password" id="token" placeholder="eyJhbGciOi..." autocomplete="off">
 
   <label for="prompt">متن سیستم‌پرامپت (فقط برای کاربر مسدود)</label>
   <textarea id="prompt" placeholder="روی «بارگذاری وضعیت فعلی» بزن تا متن فعلی اینجا لود بشه، بعد ویرایشش کن."></textarea>
@@ -61,11 +69,51 @@
     <button id="btnLoad">📥 بارگذاری وضعیت فعلی</button>
     <button id="btnSave">💾 ذخیره</button>
   </div>
+  <button id="btnDefault">↩️ بازیابی به پیش‌فرض</button>
   <div id="status"></div>
 </div>
 
 <script>
-const API_BASE = "https://dvjkjwqbuoiefoxfclfg.supabase.co/functions/v1/admin-prompt-editor";
+const PROJECT_URL = "https://dvjkjwqbuoiefoxfclfg.supabase.co";
+const KEY = "ai_support_prompt_restricted";
+
+// همون متن پیش‌فرضِ خنثی و امنی که توی سرور هم به‌عنوان fallback استفاده می‌شه —
+// این دکمه چیزی رو خودش ذخیره نمی‌کنه، فقط متن رو توی جعبه‌ی ویرایش می‌ذاره تا
+// خودت مرور کنی و اگه خواستی با دکمه‌ی «ذخیره» تأییدش کنی.
+const DEFAULT_PROMPT = `تو دستیار پشتیبانیِ آنلاینِ «بیدارگر» هستی — یک پلتفرم دستیار هوش مصنوعیِ همه‌کاره برای موبایل و وب. این‌ها امکانات واقعی پلتفرم هستن؛ فقط درباره‌ی همین‌ها با اطمینان صحبت کن:
+
+💬 چت هوشمند و شخصیت‌ها
+- گفتگو با چند مدل زبانی مختلف (رایگان و پولی)؛ کاربر خودش مدل رو انتخاب می‌کنه یا «حالت هوشمند» رو روشن می‌کنه تا مسیریاب خودکار بهترین مدل رو برای هر سوال (کدنویسی/تحلیل/عمومی) انتخاب کنه و قبل از ارسال تاییدِ هزینه بگیره.
+- شخصیت‌های آماده: بدون شخصیت (آزاد و دقیق)، شیطانی (رمان تخیلی)، شوخ‌طبع، مهربان، رسمی، و شخصیت اختصاصیِ «بیدارگر»؛ کاربر می‌تونه شخصیت اختصاصی خودش رو هم بسازه.
+- پاسخ جریانی لحظه‌به‌لحظه، و «تفکر عمیق» که مراحل واقعی پردازش مدل رو نشون می‌ده.
+- حافظه‌ی میان‌گفتگویی (قابل روشن/خاموش‌کردن) که کاربر رو در گفتگوهای مختلف به‌یاد می‌مونه.
+
+📁 فایل و رسانه
+- ارسال و تحلیل عکس، ویدیو، صوت، PDF و هر فایل متنی/کد؛ تولید تصویر و ویدیو با هوش مصنوعی.
+
+🧑‍💻 حالت کدنویسی (ماشین مجازی)
+- هوش مصنوعی خودش کد رو در یک ماشین مجازی امن و اختصاصی می‌نویسه، اجرا می‌کنه، نتیجه رو می‌بینه و اصلاح می‌کنه — کاملاً خودکار. کاربر هروقت خواست ماشین مجازیش رو نابود می‌کنه.
+- ساخت اپلیکیشن اندروید (APK) از همین ابزار.
+
+🌐 دستیار مرورگر و دسکتاپ
+- کنترل یک مرورگر واقعی (باز کردن صفحه، پرکردن فرم، کلیک، خواندن متن/رونوشت) و یک دسکتاپ لینوکسی واقعی؛ در فرم‌های لاگین/ثبت‌نام کنترل کامل همیشه دست خود کاربر می‌مونه.
+
+📞 تماس زنده‌ی صوتی و تصویری
+- تماس صوتی/تصویری زنده با هوش مصنوعی، اشتراک تصویر دوربین یا صفحه، و ارسال فایل حین تماس.
+
+☁️ ذخیره‌سازی و بک‌آپ
+- ذخیره‌ی چت‌ها/شخصیت‌ها: هم ابری هم گوشی، فقط ابری، یا فقط روی گوشی (بدون ارسال به سرور).
+- بک‌آپ یکپارچه با لینک، بازیابی از لینک، و پیوندهای عمومی برای اشتراک‌گذاری گفتگو.
+
+💳 کیف‌پول و اشتراک
+- کیف‌پول تومانی با شارژ کارت‌به‌کارت؛ هر فراخوانی مدل دقیقاً به قیمت تمام‌شده (بدون سود اضافه) کسر می‌شه. پلن‌های اشتراک با وضعیت و تاریخ انقضا.
+
+🧑‍💻 پلتفرم توسعه‌دهندگان
+- کاربران می‌تونن کلید API اختصاصی بگیرن و از سایت/برنامه‌ی خودشون به تمام ابزارهای بیدارگر (چت، ماشین مجازی، جستجوی گوگل، تحلیل یوتیوب، تحقیق عمیق و ...) وصل بشن؛ هزینه از کیف‌پول همون کلید کسر می‌شه.
+
+وظیفه‌ی تو:
+۱. مؤدب، صمیمی و مختصر باش؛ همیشه فارسی روان جواب بده.
+۲. تمام تلاشت رو بکن که خودت مستقیم و دقیق به سؤال کاربر جواب بدی، بدون حدس‌زدن چیزی که نمی‌دونی.`;
 
 const tokenEl = document.getElementById('token');
 const promptEl = document.getElementById('prompt');
@@ -73,34 +121,58 @@ const statusEl = document.getElementById('status');
 const charcountEl = document.getElementById('charcount');
 const btnLoad = document.getElementById('btnLoad');
 const btnSave = document.getElementById('btnSave');
+const btnDefault = document.getElementById('btnDefault');
 
 function setStatus(msg, cls) {
   statusEl.textContent = msg;
   statusEl.className = cls || '';
 }
-
-promptEl.addEventListener('input', () => {
+function updateCharCount() {
   charcountEl.textContent = promptEl.value.length.toLocaleString('fa-IR') + ' کاراکتر';
-});
+}
+promptEl.addEventListener('input', updateCharCount);
 
 function getToken() {
   const t = tokenEl.value.trim();
-  if (!t) { setStatus('اول توکن رو وارد کن.', 'err'); return null; }
+  if (!t) { setStatus('اول توکن service_role رو وارد کن.', 'err'); return null; }
   return t;
 }
 
-btnLoad.addEventListener('click', async () => {
+async function apiRequest(method, body) {
   const token = getToken();
-  if (!token) return;
+  if (!token) return null;
+  const url = `${PROJECT_URL}/rest/v1/bidargar_config?key=eq.${encodeURIComponent(KEY)}`;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'apikey': token,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = text; }
+  if (!res.ok) {
+    throw new Error((data && data.message) ? data.message : `HTTP ${res.status}: ${text.slice(0,200)}`);
+  }
+  return data;
+}
+
+btnLoad.addEventListener('click', async () => {
   btnLoad.disabled = true;
   setStatus('در حال بارگذاری...', '');
   try {
-    const res = await fetch(API_BASE + '?token=' + encodeURIComponent(token));
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-    promptEl.value = data.value || '';
-    charcountEl.textContent = promptEl.value.length.toLocaleString('fa-IR') + ' کاراکتر';
-    setStatus('✅ متن فعلی بارگذاری شد.', 'ok');
+    const data = await apiRequest('GET');
+    if (!data || !data.length) {
+      setStatus('ردیفی با این کلید پیدا نشد.', 'err');
+    } else {
+      promptEl.value = data[0].value || '';
+      updateCharCount();
+      setStatus('✅ متن فعلی بارگذاری شد.', 'ok');
+    }
   } catch (e) {
     setStatus('❌ خطا: ' + e.message, 'err');
   } finally {
@@ -108,9 +180,13 @@ btnLoad.addEventListener('click', async () => {
   }
 });
 
+btnDefault.addEventListener('click', () => {
+  promptEl.value = DEFAULT_PROMPT;
+  updateCharCount();
+  setStatus('متن پیش‌فرض توی جعبه گذاشته شد — برای اعمال واقعی، «💾 ذخیره» رو بزن.', 'ok');
+});
+
 btnSave.addEventListener('click', async () => {
-  const token = getToken();
-  if (!token) return;
   const value = promptEl.value;
   if (!value.trim()) {
     setStatus('متن خالیه — چیزی بنویس تا ذخیره بشه.', 'err');
@@ -119,13 +195,7 @@ btnSave.addEventListener('click', async () => {
   btnSave.disabled = true;
   setStatus('در حال ذخیره...', '');
   try {
-    const res = await fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, value }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    await apiRequest('PATCH', { value, updated_at: new Date().toISOString() });
     setStatus('✅ ذخیره شد.', 'ok');
   } catch (e) {
     setStatus('❌ خطا: ' + e.message, 'err');
